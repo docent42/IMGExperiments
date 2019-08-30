@@ -1,45 +1,44 @@
-import org.imgscalr.Scalr;
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
 import java.io.File;
-import static org.imgscalr.Scalr.OP_ANTIALIAS;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class Main
 {
     public static void main(String[] args)
     {
-        String srcFolder = "G:\\Java_work\\Block11\\ImgExperiments\\images\\src";
-        String dstFolder = "G:\\Java_work\\Block11\\ImgExperiments\\images\\dst";
-        File srcDir = new File(srcFolder);
-
-        long start = System.currentTimeMillis();
-
-        File[] files = srcDir.listFiles();
-
-        try
-        {
-            for(File file : files)
+        //================================ INIT ======================================================
+        int targetWidth = 300;
+        Path srcFolder = Paths.get("images\\src"); // источник фото
+        String dstFolder = "images\\dst";// назначение
+        int coreCount = Runtime.getRuntime().availableProcessors();// количество ядер
+        Integer index;
+        HashMap<Integer,List<File>> threadPool = new HashMap<>();// схема распределения файлов по потокам
+        // ============================================================================================
+        try {
+            List<Path> fileList = Files.list(srcFolder).collect(Collectors.toList());// список файлов
+            int filesCount = fileList.size(); // количество файлов
+            int stackSize =  (filesCount / coreCount) + 1; // количество файлов на поток
+            // ========= Задачка про ящики контейнеры и грузовики :) =======================
+            for (int i = 0;i < filesCount;i++)
             {
-                BufferedImage image = ImageIO.read(file);
-                if(image == null) {
-                    continue;
+                index = i / stackSize;
+                if (i % stackSize == 0)
+                {
+                   threadPool.put(index, new ArrayList<>());
+                   threadPool.get(index).add(fileList.get(i).toFile());
                 }
-                BufferedImage newImage = createThumbnail(image,300);
-
-                File newFile = new File(dstFolder + "/" + file.getName());
-                ImageIO.write(newImage, "jpg", newFile);
+                else threadPool.get(index).add(fileList.get(i).toFile());
             }
+            long start = System.currentTimeMillis();
+            threadPool.forEach((ind, list) -> new ImageResizer(list,targetWidth,dstFolder,start,ind).start());
         }
-        catch (Exception ex) {
-            ex.printStackTrace();
-        }
+        catch (Exception ex){
+            ex.printStackTrace();}
 
-        System.out.println("Duration: " + (System.currentTimeMillis() - start));
-    }
-    private static BufferedImage createThumbnail(BufferedImage img, int targetSize)
-    {
-        img = Scalr.resize(img, Scalr.Method.SPEED, targetSize * 3);// OP_ANTIALIAS
-        img = Scalr.resize(img, Scalr.Method.QUALITY, targetSize,OP_ANTIALIAS);
-        return img;
     }
 }
